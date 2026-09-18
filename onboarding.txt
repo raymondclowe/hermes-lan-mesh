@@ -11,7 +11,7 @@ coordinator. Every agent keeps its own small peer list and gossips.
      fleet token hermes-lan-mesh-open  (FIXED, public, NOT a secret — see 2a)
      repo        github.com/raymondclowe/hermes-lan-mesh   (this file: onboarding.txt)
      canonical   https://raw.githubusercontent.com/raymondclowe/hermes-lan-mesh/main/onboarding.txt
-     rev         4   (2026-09-18)
+     rev         5   (2026-09-18)
      security    meshctl.py in this repo — see SECURITY.md (steps are in step 10)
 
 There is deliberately NO peer list in this document: publishing peer addresses
@@ -486,6 +486,10 @@ the expectation. Security that nobody switches on protects nobody.
 
     python $HERMES_HOME/scripts/meshctl.py init --name <your-name> --url http://<your-lan-ip>:9900
     python $HERMES_HOME/scripts/meshctl.py status
+
+Run meshctl with a python that HAS the `cryptography` package. Hermes's own venv python does;
+a bare system python may not (on a Linux host /usr/bin/python3 usually does). Check with
+`python -c "import cryptography"` before blaming the tool.
 
 If meshctl.py is not on this machine yet:
 
