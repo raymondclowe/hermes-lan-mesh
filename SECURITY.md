@@ -67,7 +67,8 @@ anything its context window believes. The design answers this structurally:
 - **A nation-state or a targeted, funded attacker.** See §5 for what it would take to raise
   the bar rather than pretending it is already raised.
 - **An agent that is already trusted going rogue.** Trust is binary here, not per-capability.
-  If that matters, Phase 2 (below) plus per-task approvals is the answer.
+  If that matters, per-task approvals are the answer — adding transport cryptography does not
+  change it (see §5 for why mutual TLS was rejected).
 
 ---
 
@@ -144,38 +145,40 @@ Defaults chosen for that case:
 
 ### If you later need more
 
-1. **Phase 2 — mutual TLS.** What it would buy: confidentiality on the wire (task text stops
-   being readable by an ARP-spoofing peer), a machine-verified identity *at the transport*
-   (a device with the token but no certificate cannot even open a connection, unlike today),
-   and credential expiry/revocation at the crypto layer. What it would **not** buy: it does not
-   change the human-facing trust model above, it does not stop an already-trusted agent going
-   rogue, and it does not help if a member host is compromised.
-   **Cost here is real, and stated honestly:** the A2A specification declares a `MutualTls`
-   security scheme, but Hermes's A2A adapter (a stdlib `ThreadingHTTPServer`) contains **no TLS
-   code at all** — verified by reading the plugin; there is no certfile, no client-certificate
-   verification, no `ssl` import. So this is not a configuration change. It is one of:
-   (a) a small patch to the adapter's inbound path (wrap the server socket in an `SSLContext`
-   with `CERT_REQUIRED` and a CA bundle) — small code, but inside the install tree it is
-   overwritten by `hermes update`, so it belongs in an out-of-tree plugin or upstream; or
-   (b) a TLS/mTLS-terminating proxy in front of the listener, which needs no Hermes change but
-   adds a service and a CA to manage — and is **theatre unless the cleartext port is also
-   bound to localhost**, since an attacker who can reach `:9900` directly bypasses the proxy.
-   Either way it is a fleet-wide cutover: every peer must do it, so during the transition both
-   paths run and the guarantee is only as strong as the weakest peer.
-2. **Per-agent tokens — available today, free, and probably the actual win.** `A2A_PEER_TOKENS`
-   in `.env` gives every peer its own credential, so the authenticated identity becomes the
-   peer's *name* instead of `ip:<address>`: that is what drives rate limiting, trust and audit
-   per agent. It is one line of configuration and no new components, which is why the honest
-   advice is to do this long before mTLS.
-3. **Hardware-anchored identity** (TPM DevID) for machines that have one — the only way to
-   make a stolen disk useless.
-4. **If you actually need traffic confidentiality** (not one of the three threats above — a
-   guest device, a compromised IoT box, or a rogue agent joining), the fix is TLS on the
-   listener, i.e. Phase 2, reusing the identity already built here. **Do not reach for an
-   overlay network:** on a single L2 segment a VPN buys no reachability, adds a second trust
-   system alongside the pinned keys, and protects nothing in the threat model this mesh is
-   sized for. Until then, know the real gap precisely: A2A is cleartext HTTP, so anyone who
-   can ARP-spoof the segment can *read* task text. Keep secrets out of task text.
+1. **Per-agent tokens — available today, free, and the actual win.** `A2A_PEER_TOKENS` in `.env`
+   gives every peer its own credential, so the authenticated identity becomes the peer's *name*
+   instead of `ip:<address>`: that is what drives rate limiting, trust and audit per agent. One
+   line of configuration, no new components.
+2. **Hardware-anchored identity** (TPM DevID) for machines that have one — the only way to make
+   a stolen disk useless. Worth it only if you care about physical theft.
+
+#### Rejected: mutual TLS / a mesh CA (decided 2026-09-18 — do not re-propose)
+
+Written down so it is not re-litigated. mTLS was designed, costed, and **rejected as pointless
+for this fleet**, because it buys nothing against the three threats this mesh is sized for:
+
+- **Guest device / compromised IoT:** already handled. They cannot make an agent work without a
+  pinned key. mTLS would additionally stop them *talking*, which is a marginal gain.
+- **A prompt-injected agent trying to join:** mTLS does nothing at all. The defence is the
+  human-carried code plus the SAS comparison, which is already in place.
+- **It is not a configuration change.** Hermes's A2A adapter is a stdlib `ThreadingHTTPServer`
+  with **no TLS code whatsoever** (no `ssl` import, no certfile, no client-certificate
+  verification — read the plugin). A2A the *specification* declares a `MutualTls` scheme; Hermes
+  does not implement it. So it means patching the adapter (and install-tree edits are wiped by
+  `hermes update`, so it belongs out-of-tree or upstream) or running a TLS-terminating proxy —
+  which is theatre unless `:9900` is also bound to localhost, since reaching the port directly
+  bypasses the proxy.
+- **It is a fleet-wide cutover with a weak guarantee.** Every peer must adopt it; during the
+  transition both paths run, so the protection is only as strong as the least-updated peer.
+- **It does not answer the unstated threat.** It cannot stop an already-trusted agent going
+  rogue, and it does not help when a member host is compromised — the key is on that host.
+
+**The real gap, stated once and left alone:** A2A is cleartext HTTP, so anyone who can ARP-spoof
+the segment can read task text. The mitigation that costs nothing is procedural — **keep secrets
+out of A2A task text**. If a genuine confidentiality requirement ever appears (new information,
+not a general preference), TLS on the listener is the only correct place for it, reusing the
+identity already built here — and never an overlay VPN, which adds a second trust system beside
+the pinned keys while answering none of the threats above.
 
 ---
 
