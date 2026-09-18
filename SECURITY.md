@@ -144,14 +144,32 @@ Defaults chosen for that case:
 
 ### If you later need more
 
-1. **Phase 2 — mutual TLS.** The A2A Agent Card already declares a `MutualTls` security
-   scheme, so this is a configuration change plus a small CA (SPIRE is the off-the-shelf
-   implementation, with node attestors including `join_token`, `x509pop`, `sshpop` and
-   `tpm_devid`). It buys traffic encryption and automatic credential expiry. It does **not**
-   change the human-facing model above.
-2. **Hardware-anchored identity** (TPM DevID) for machines that have one — the only way to
+1. **Phase 2 — mutual TLS.** What it would buy: confidentiality on the wire (task text stops
+   being readable by an ARP-spoofing peer), a machine-verified identity *at the transport*
+   (a device with the token but no certificate cannot even open a connection, unlike today),
+   and credential expiry/revocation at the crypto layer. What it would **not** buy: it does not
+   change the human-facing trust model above, it does not stop an already-trusted agent going
+   rogue, and it does not help if a member host is compromised.
+   **Cost here is real, and stated honestly:** the A2A specification declares a `MutualTls`
+   security scheme, but Hermes's A2A adapter (a stdlib `ThreadingHTTPServer`) contains **no TLS
+   code at all** — verified by reading the plugin; there is no certfile, no client-certificate
+   verification, no `ssl` import. So this is not a configuration change. It is one of:
+   (a) a small patch to the adapter's inbound path (wrap the server socket in an `SSLContext`
+   with `CERT_REQUIRED` and a CA bundle) — small code, but inside the install tree it is
+   overwritten by `hermes update`, so it belongs in an out-of-tree plugin or upstream; or
+   (b) a TLS/mTLS-terminating proxy in front of the listener, which needs no Hermes change but
+   adds a service and a CA to manage — and is **theatre unless the cleartext port is also
+   bound to localhost**, since an attacker who can reach `:9900` directly bypasses the proxy.
+   Either way it is a fleet-wide cutover: every peer must do it, so during the transition both
+   paths run and the guarantee is only as strong as the weakest peer.
+2. **Per-agent tokens — available today, free, and probably the actual win.** `A2A_PEER_TOKENS`
+   in `.env` gives every peer its own credential, so the authenticated identity becomes the
+   peer's *name* instead of `ip:<address>`: that is what drives rate limiting, trust and audit
+   per agent. It is one line of configuration and no new components, which is why the honest
+   advice is to do this long before mTLS.
+3. **Hardware-anchored identity** (TPM DevID) for machines that have one — the only way to
    make a stolen disk useless.
-3. **If you actually need traffic confidentiality** (not one of the three threats above — a
+4. **If you actually need traffic confidentiality** (not one of the three threats above — a
    guest device, a compromised IoT box, or a rogue agent joining), the fix is TLS on the
    listener, i.e. Phase 2, reusing the identity already built here. **Do not reach for an
    overlay network:** on a single L2 segment a VPN buys no reachability, adds a second trust
