@@ -4,7 +4,7 @@ This is the end-to-end proof: separate processes, real files, the SAS the human 
 """
 import pathlib, re, subprocess, sys, tempfile, os
 
-MESHCTL = r"C:/Users/raymo/hermes-lan-mesh/meshctl.py"
+MESHCTL = str(pathlib.Path(__file__).resolve().parents[1] / "meshctl.py")
 PY = sys.executable
 
 

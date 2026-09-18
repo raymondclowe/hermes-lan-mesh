@@ -13,45 +13,33 @@ agents should read `onboarding.txt`:
 
     https://raw.githubusercontent.com/raymondclowe/hermes-lan-mesh/main/onboarding.txt
 
+**Nothing else is required to join.** No keys to mint, no codes to carry, no ceremony — read the
+document, run the steps, and you are in the mesh. That simplicity is a deliberate decision, not
+an oversight: see `SECURITY.md`.
+
 ## What is in here
 
 - **`onboarding.txt`** — the canonical, agent-facing document. Steps 1–10, the fixed-token rule,
-  the container rules, the security steps, the recorded traps, and the report format. Plain
-  text; the only file an agent needs.
-- **`meshctl.py`** — the tool the security steps use: agent identity, key pinning, the
-  human-verified join ceremony, mesh federation, alarms. One file, no service to run, stdlib
-  plus `cryptography`. Run its own end-to-end ceremony, including the attacks it stops, with
-  `python meshctl.py selftest`.
-- **`SECURITY.md`** — the threat model, why every primitive used here is a standard (with RFC
-  references), what is protected and what is not, and the defaults. **Read this before deciding
-  whether to trust the mesh.**
-- **`tests/cli_e2e.py`** — drives the real CLI through a complete join ceremony in two throwaway
-  homes, and checks the refusals (replayed code, wrong SAS, wrong key, key change).
+  the container rules, the recorded traps, and the report format. Plain text; the only file an
+  agent needs.
+- **`SECURITY.md`** — why there is no ceremony, what the boundary actually is (the firewall, and
+  the token-is-not-a-secret rule), the hard rules that survive, the accepted residual risks, and
+  the list of approaches considered and rejected. **Read it before proposing any security work.**
+- **`optional/`** — working, unused tooling: `meshctl.py` (Ed25519 identity, key pinning, a
+  human-verified join, mesh federation, alarms) plus its end-to-end test. A full trust model was
+  built and then scrapped as overkill for a home LAN. It is kept because it works (17/17 and
+  18/18 passing) and there is no reason to delete it — but **it is not part of onboarding, it is
+  not required, and nobody should run it unless the operator asks for it by name.**
 
-## Quickstart for a human
+## Quickstart
 
-Two commands per agent, then nothing until somebody new joins:
+Read `onboarding.txt` and follow steps 1–9. The short version for a person:
 
-    python meshctl.py init --name g7e-hermes --url http://192.168.0.70:9900
-    python meshctl.py status
-
-`init` makes the agent's key pair plus a mesh anchor key and prints two fingerprints — one for
-the agent, one for the mesh. That is the entire required configuration, and it is safe to
-re-run: it never rotates a key that peers have already pinned.
-
-When a new agent joins:
-
-    member:    python meshctl.py join mint                  # print a single-use code
-    human:     carry that code to the newcomer, out of band
-    newcomer:  python meshctl.py join request --code <CODE> --member http://<member>:9900
-    both:      compare the 6 digits both agents display
-    newcomer:  python meshctl.py join confirm --sas <digits>
-    member:    python meshctl.py join confirm --text "<CONFIRM line from the newcomer>"
-
-Two meshes merge the same way, with one digest read out loud:
-
-    python meshctl.py federate offer
-    python meshctl.py federate join --mesh <other> --root <their-root-key> --confirm-digest <digest>
+    identity   <machine-name>-hermes, fixed forever
+    listener   A2A_HOST=0.0.0.0, A2A_PORT=9900, A2A_BEARER_TOKEN=hermes-lan-mesh-open
+    firewall   allow TCP 9900 from your own subnet only  ← this is the actual boundary
+    discovery  sweep your own subnet for port 9900, announce, keep peers.json
+    heartbeat  a cron job that re-announces on change (mesh-heartbeat)
 
 ## Self-update
 
@@ -80,7 +68,7 @@ Rules that make this work:
 ## The one thing people get wrong
 
 The fleet token (`hermes-lan-mesh-open`) is a **membership handshake, not a secret** — it is
-printed in this public document by design, and its only job is to satisfy Hermes's fail-closed
-bind rule. The **firewall** is the network boundary, and since rev 4 the thing that decides
-whether a peer may do work is a **pinned key**, established in a human-verified join ceremony.
-Never describe an agent exposing A2A on a LAN as "protected by a token".
+printed in this public document by design and its only job is to satisfy Hermes's fail-closed
+bind rule (without a token the listener binds `127.0.0.1` and no mesh can exist). The **firewall**
+is the boundary. Never describe an agent exposing A2A on a LAN as "protected by a token", and
+never widen the bind on a host whose firewall is not scoped to the subnet.
