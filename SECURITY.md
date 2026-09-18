@@ -151,8 +151,13 @@ Defaults chosen for that case:
    change the human-facing model above.
 2. **Hardware-anchored identity** (TPM DevID) for machines that have one — the only way to
    make a stolen disk useless.
-3. **Encrypt the transport now**, cheaply, if you want it before Phase 2: put the mesh on a
-   WireGuard interface (the fleet already runs WireGuard on one host), so A2A rides inside it.
+3. **If you actually need traffic confidentiality** (not one of the three threats above — a
+   guest device, a compromised IoT box, or a rogue agent joining), the fix is TLS on the
+   listener, i.e. Phase 2, reusing the identity already built here. **Do not reach for an
+   overlay network:** on a single L2 segment a VPN buys no reachability, adds a second trust
+   system alongside the pinned keys, and protects nothing in the threat model this mesh is
+   sized for. Until then, know the real gap precisely: A2A is cleartext HTTP, so anyone who
+   can ARP-spoof the segment can *read* task text. Keep secrets out of task text.
 
 ---
 
